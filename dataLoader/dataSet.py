@@ -81,7 +81,7 @@ class UAVDataset(Dataset):
 
         label = label // [new_w,new_h,new_w,new_h]
         
-
+        label = torch.from_numpy(label.astype(np.float32)).clone()
         data = {"img": img, "label": label}
         return data
 
