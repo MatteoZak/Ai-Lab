@@ -1,3 +1,4 @@
+import cv2
 from dataLoader.dataSet import UAVDataset
 import torch
 
@@ -13,7 +14,7 @@ from torchvision import transforms
 import segmentation_models_pytorch as smp
 
 
-dataset = UAVDataset('../dataset.csv','../image-Dataset/images/',output_size=256)
+dataset = UAVDataset('dataset.csv','image-Dataset/images/',output_size=256)
 
 proportions = [.75, .10, .15]
 lengths = [int(p * len(dataset)) for p in proportions]
@@ -64,16 +65,44 @@ class UpConv(nn.Module):
         x = self.conv(x)
         x = self.bn2(x)
         return x
+    
+    # class OurMLP(nn.Module):
+    # def __init__(self):
+    #     super().__init__() # inherit from nn.Module
+    #     self.mlp = nn.Sequential(
+    #         nn.Linear(28 * 28, 20), # input layer
+    #         nn.Sigmoid(), # activation function
+    #         nn.Linear(20, 50), # hidden layer
+    #         nn.Sigmoid(), # activation function
+    #         nn.Linear(50, 10), # output layer
+    #     )
+    #     self.flatten = nn.Flatten() # flatten image
+
+
+    # def forward(self, x):
+    #     x = self.flatten(x) # flatten image
+    #     logits = self.mlp(x) # pass through MLP
+    #     return logits # return output
+ 
 
 class UNet_2D(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(256,512,3)
-        self.conv2 = nn.Conv2d(512,256,1)
-        self.fc1 = nn.Linear(256,16)
-        self.fc2 = nn.Linear(20,15)
-        self.fc3 = nn.Linear(15,10)
+        self.conv2 = nn.Conv2d(512,189,1)
+        self.fc1 = nn.Linear(254,32)
+        self.fc2 = nn.Linear(32,16)
+        self.fc3 = nn.Linear(16,4)
         self.relu = nn.ReLU()
+        # self.mlp = nn.Sequential(
+        #     nn.Conv2d(256,256,3),
+        #     nn.Linear(768,16 * 16), # input layer
+        #     nn.Sigmoid(), # activation function
+        #     nn.Linear(16 * 16, 32), # hidden layer
+        #     nn.Sigmoid(), # activation function
+        #     nn.Linear(32, 189), # output layer
+        # )
+        # self.flatten = nn.Flatten() # flatten image
 
     def forward(self, x):
         x = self.conv1(x)
@@ -96,7 +125,9 @@ class UNet_2D(nn.Module):
 
         # fc out
         x = self.fc3(x)
-
+        # x = self.flatten(x) # flatten image
+        # logits = self.mlp(x) # pass through MLP
+        #return logits # return output
         return x
 
 
@@ -208,7 +239,7 @@ optimizer = torch.optim.AdamW(model.parameters(),learning_rate) #torch.optim.SGD
 
 # defining the training loop
 def trainingLoop(train_dataloader, model, loss_fn, optimizer):
-
+    idx = 0
     for batch in train_dataloader:
         # move data on gpu
         x = batch["img"]
@@ -223,10 +254,10 @@ def trainingLoop(train_dataloader, model, loss_fn, optimizer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        if batch % 10 == 0:
+        if idx % 100 == 0:
             loss = loss.item()
             print(f"The loss is {loss}")
+        idx += 1
 
 
 def testLoop(test_dataloader, model, loss_fn):
@@ -234,23 +265,62 @@ def testLoop(test_dataloader, model, loss_fn):
     num_batches = len(test_dataloader)
     test_loss = 0
     correct = 0
+    val_loss = 0
+    val_loss_min = np.inf
 
     with torch.no_grad():
-        for X,y in test_dataloader:
-            X,y = X.to(device), y.to(device)
+        for batch in test_dataloader:
+            x = batch["img"]
+            y = batch["label"]
+            x,y = x.to(device), y.to(device)
 
-            pred = model(X)
+            pred = model(x)
             test_loss += loss_fn(pred,y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
-
+            # print(pred.argmax(0))
+            # print(y)
+            val_loss += test_loss
+            correct += (pred.argmax(0) == y).type(torch.float).sum().item()
+    
     test_loss = test_loss/num_batches
     correct = correct / print_size
-
+    if val_loss < val_loss_min:
+        val_loss_min = val_loss
+        torch.save(model.state_dict(), 'semantic_segmentation.pt')
+        print("Saving Changes")
     print(f"Accuracy: {correct * 100}, Average loss: {test_loss}")
 
 
 
 
-for e in range(epochs):
-    trainingLoop(train,model,loss_fn,optimizer)
-    testLoop(test,model,loss_fn)
+# for e in range(epochs):
+#     trainingLoop(train,model,loss_fn,optimizer)
+#     testLoop(test,model,loss_fn)
+model1 = UNet_2D().to(device)
+model1.load_state_dict(torch.load("semantic_segmentation.pt"))
+model1.eval()
+
+transform = transforms.ToTensor()
+
+img_path = "image-Dataset/images/9999986_00000_d_0000025.jpg"
+img_prev = cv2.imread(img_path)
+img = cv2.resize(img_prev, dsize = (256,256))
+img = img / 255
+img = torch.from_numpy(img.astype(np.float32)).clone()
+
+
+input = img
+batch = {
+    'img':input
+}
+output = model1(input).to('cpu')
+
+sigmoid = nn.Sigmoid()
+outputs = sigmoid(output)
+print(outputs)
+# pred = torch.argmax(outputs, axis = 1)
+# pred = torch.nn.functional.one_hot(pred.long(), num_classes = len(class_list)).to(torch.float32)
+img = np.asarray(img)
+from PIL import Image
+
+a = Image.fromarray((img * 255).astype(np.uint8))
+a.save("provaimg.png")
