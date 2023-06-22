@@ -2,3 +2,4 @@ image-Dataset/
 hit-uav/
 dataLoader/__pycache__
 semantic_segmentation.pt
+*.json
