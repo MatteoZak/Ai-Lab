@@ -1,28 +1,22 @@
-from tqdm.auto import tqdm
+
 from dataLoader.dataset import UAVThermicalDataset
 import torch
 import os
-import requests
-import zipfile
+
 import cv2
 import math
 import matplotlib.pyplot as plt
 import glob
 import numpy as np
 import random
-import time
+
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torchvision import models
-import torchvision
-from torchvision import transforms
 import segmentation_models_pytorch as smp
 from torch.utils.data import Dataset, DataLoader
 
-from PIL import Image
 
 ROOT_DIR = 'hit-uav'
 train_imgs_dir = f'{ROOT_DIR}/images/train'
@@ -196,35 +190,36 @@ test_dataloader = DataLoader(test_dataset,batch_size=batch_size,shuffle=True)
 class myCNN(nn.Module):
     def __init__(self):
         super(myCNN, self).__init__()
+        self.target_batch_size = 20
 
         # Define your model layers
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
         self.relu1 = nn.ReLU(inplace=True)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.relu2 = nn.ReLU(inplace=True)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.fc1 = nn.Linear(128 * 64 * 64, 256)
+        self.fc1 = nn.Linear(128 * 128 * 512, 20)
         self.relu3 = nn.ReLU(inplace=True)
-        self.fc2 = nn.Linear(256, 5 * 40 * 4)  # Output size matches the target size
-        #self.sigm = nn.Sigmoid()
+        self.fc2 = nn.Linear(20, 40)  # Output size matches the target size
+        self.sigm = nn.Sigmoid()
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.relu1(x)
-        x = self.maxpool1(x)
         x = self.conv2(x)
         x = self.relu2(x)
-        x = self.maxpool2(x)
+        x = NormalizeTensor(x)
         x = x.view(x.size(0), -1)
         x = self.fc1(x)
         x = self.relu3(x)
         x = self.fc2(x)
         x = x.view(-1, 5, 40, 4)  # Reshape to match the target size
-        #x = self.sigm(x)
+        x = self.sigm(x)
+        # x = x.expand(20,-1)
         return x
 
 
+def NormalizeTensor(data):
+    return (data - torch.min(data)) / (torch.max(data) - torch.min(data))
 
 # instance of our model
 device = "cpu"
@@ -258,7 +253,10 @@ def trainingLoop(train_dataloader, model, loss_fn, optimizer):
         # print(x.size())
         #print(batch)
         pred = model(x)
-        
+        # print(pred)
+        # print(y)
+        # print(pred.size(0),y.size(0))
+        y = y[:pred.size(0)]
         loss = loss_fn(pred,y)
 
         # backpropagation 

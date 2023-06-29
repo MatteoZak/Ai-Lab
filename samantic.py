@@ -5,6 +5,8 @@ from PIL import Image
 import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
+import torch.nn as nn
+import math
 
 model = myCNN()
 model.load_state_dict(torch.load("semantic_segmentation.pt"))
@@ -26,10 +28,12 @@ output = model(input).to('cpu')
 
 # output -= output.min(1, keepdim=True)[0]
 # output /= output.max(1, keepdim=True)[0]
-output = output.view(output.size(0), -1)
-output -= output.min(1, keepdim=True)[0]
-output /= output.max(1, keepdim=True)[0]
-output = output.view(-1, 5, 40, 4)
+# output = output.view(output.size(0), -1)
+# output -= output.min(1, keepdim=True)[0]
+# output /= output.max(1, keepdim=True)[0]
+# output = output.view(-1, 5, 40, 4)
+sigmoid = nn.Sigmoid()
+pred = sigmoid(output*(math.log2(output.max()))*5)
 print(output)
 classes = ['Person', 'Car', 'Bicycle', 'OtherVechicle', 'DontCare']
 colors = np.random.uniform(0, 255, size=(len(classes), 3))
