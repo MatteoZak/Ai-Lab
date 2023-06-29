@@ -154,25 +154,25 @@ def plot(image_path, label_path, num_samples, classes=classes, colors=colors, po
     plt.show()
 
 
-# plot(
-#     image_path=os.path.join( train_imgs_dir), 
-#     label_path=os.path.join( train_labels_dir),
-#     num_samples=8
-# )
-# def collate_fn(batch):
-#     images = []
-#     targets = []
+plot(
+    image_path=os.path.join( train_imgs_dir), 
+    label_path=os.path.join( train_labels_dir),
+    num_samples=2
+)
+def collate_fn(batch):
+    images = []
+    targets = []
 
-#     for image, labels in batch:
-#         images.append(image)
-#         targets.append({
-#             'labels': torch.tensor(labels, dtype=torch.int64),
-#             'image_id': torch.zeros(1),  # Placeholder for image ID (optional)
-#         })
+    for image, labels in batch:
+        images.append(image)
+        targets.append({
+            'labels': torch.tensor(labels, dtype=torch.int64),
+            'image_id': torch.zeros(1),  # Placeholder for image ID (optional)
+        })
 
-#     images = torch.stack(images)
+    images = torch.stack(images)
 
-#     return images, targets
+    return images, targets
 
 batch_size = 20
 
@@ -329,5 +329,5 @@ def createBrain():
         json.dump(history_train,wr,indent=4)
 
 
-if __name__ == "__main__":
-    createBrain()
+# if __name__ == "__main__":
+#     createBrain()
